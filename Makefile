@@ -1,4 +1,4 @@
-.PHONY: setup backend frontend test build seed
+.PHONY: setup backend frontend test frontend-test build seed
 
 setup:
 	python3 -m venv .venv
@@ -13,6 +13,9 @@ frontend:
 
 test:
 	.venv/bin/python -m pytest tests -q
+
+frontend-test:
+	cd frontend && npm test
 
 build:
 	cd frontend && npm run build

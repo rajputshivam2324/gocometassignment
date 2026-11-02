@@ -1,6 +1,6 @@
 """Validated request models shared by HTTP handlers and the auction service."""
 
-from datetime import date
+from datetime import date, timezone
 from decimal import Decimal
 from typing import Annotated, Literal
 
@@ -40,13 +40,20 @@ class AuctionCreate(InputModel):
     extension_minutes: PositiveInteger = 5
     extension_trigger: Literal["bid_received", "rank_change", "l1_change"] = "bid_received"
 
+    @field_validator("start_time", "close_time", "forced_close_time")
+    @classmethod
+    def valid_utc_time(cls, value):
+        # An offset can push a valid local year beyond datetime's UTC range.
+        try:
+            return value.astimezone(timezone.utc)
+        except OverflowError as exc:
+            raise ValueError("Time must be representable in UTC") from exc
+
     @model_validator(mode="after")
     def validate_schedule(self):
         if not self.start_time < self.close_time < self.forced_close_time:
             raise ValueError("Times must satisfy start_time < close_time < forced_close_time")
         # Date comparisons use UTC, just as all persisted and server times do.
-        from datetime import timezone
-
         if self.service_date < self.start_time.astimezone(timezone.utc).date():
             raise ValueError("service_date must be on or after the UTC start date")
         return self

@@ -28,7 +28,7 @@ flowchart LR
 6. On a qualifying trigger, update close to `min(close + Y, forced_close)`. Record the bid and any extension event in the same transaction.
 7. Commit. Return the updated rankings, timings, and activity log.
 
-A failed submission rolls back the entire transaction. A row lock allows independent auctions to accept bids concurrently while serializing changes to the same auction. PostgreSQL's default Read Committed isolation and per-request sessions are used. The write lock must cover the read/compare/write sequence; a client-side countdown cannot enforce closing rules.
+A failed submission rolls back the entire transaction. A row lock allows independent auctions to accept bids concurrently while serializing changes to the same auction. Bid writes use PostgreSQL's default Read Committed isolation and per-request sessions. List, detail, and history reads use separate short-lived Repeatable Read sessions so every response comes from one committed snapshot, even when a bid commits between its queries. The write lock must cover the read/compare/write sequence; a client-side countdown cannot enforce closing rules.
 
 ## Time and state
 

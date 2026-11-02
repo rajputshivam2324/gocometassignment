@@ -37,6 +37,7 @@ Build the frontend:
 ```bash
 cd frontend
 npm ci
+npm test
 npm run build
 ```
 
@@ -53,3 +54,7 @@ Browser checks use the actual FastAPI server and a separate local PostgreSQL dem
 - A bid submitted through a separate HTTP client appeared through frontend polling without reloading.
 - Search, completed-status empty state, filter reset, and mobile navigation passed.
 - At 390px: detail and creation dialog had no page-level horizontal overflow; typing focus survived polling and Escape dismissed the dialog.
+
+## Adversarial follow-up — 2026-11-02
+
+PostgreSQL: **92 passed**. Portable SQLite: **83 passed, 9 PostgreSQL-only skipped**. Frontend: **7 regression tests passed**, production build passed. See [root causes and reproductions](BREAK_TEST_REPORT.md).

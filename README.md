@@ -69,7 +69,9 @@ Times are entered and displayed in your browser's local timezone; the API stores
 
 ```bash
 .venv/bin/python -m pytest tests -q
-cd frontend && npm run build
+cd frontend
+npm test
+npm run build
 ```
 
 See [testing notes](docs/TESTING.md) for the PostgreSQL integration test setup and verified scenarios. Tests never reuse `DATABASE_URL` as the PostgreSQL test database. The database initialization uses SQLAlchemy `create_all` for this first schema; it does not migrate existing schemas. For later schema changes, add versioned migrations before rollout.
@@ -88,6 +90,7 @@ docs/              Assignment, HLD, schema, API contract, testing notes
 
 - [Architecture and HLD](docs/ARCHITECTURE.md), including architecture diagram, bid transaction, and design decisions
 - [Database schema](docs/SCHEMA.md), including entity diagram and constraints
+- [Adversarial test report](docs/BREAK_TEST_REPORT.md)
 - [API contract](docs/API_CONTRACT.md)
 - [Original assignment text](docs/assignment.txt)
 

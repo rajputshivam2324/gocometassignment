@@ -1,5 +1,6 @@
 """Auction rules and atomic bid processing independent of HTTP and wall-clock time."""
 
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Callable
@@ -34,6 +35,23 @@ class AuctionService:
     def __init__(self, session: Session, clock: Callable[[], datetime] = utc_now):
         self.session = session
         self.clock = clock
+
+    @contextmanager
+    def _read_snapshot(self):
+        """Serialize a committed snapshot without blocking concurrent bids.
+
+        PostgreSQL READ COMMITTED takes a new snapshot for every SELECT. A
+        detail/list response has several SELECTs, so it needs REPEATABLE READ.
+        A separate, short-lived session also avoids stale identity-map values
+        and leaves the bidding session's isolation and row-lock rules intact.
+        Closing it releases the read transaction on success and on exceptions.
+        """
+        bind = self.session.get_bind()
+        engine = getattr(bind, "engine", bind)
+        if engine.dialect.name == "postgresql":
+            engine = engine.execution_options(isolation_level="REPEATABLE READ")
+        with Session(engine) as session:
+            yield AuctionService(session, clock=self.clock)
 
     def _bids(self, auction_id: str) -> list[Bid]:
         return list(self.session.scalars(select(Bid).where(Bid.auction_id == auction_id)))
@@ -152,6 +170,10 @@ class AuctionService:
             raise
 
     def list_auctions(self) -> list[dict]:
+        with self._read_snapshot() as reader:
+            return reader._list_auctions()
+
+    def _list_auctions(self) -> list[dict]:
         now = as_utc(self.clock())
         auctions = list(self.session.scalars(select(Auction).order_by(Auction.created_at.desc(), Auction.id.desc())))
         bids_by_auction: dict[str, list[Bid]] = {}
@@ -161,9 +183,14 @@ class AuctionService:
         return [self._summary(auction, bids_by_auction.get(auction.id, []), now) for auction in auctions]
 
     def get_auction(self, auction_id: str) -> dict:
-        return self._detail(self._auction(auction_id), as_utc(self.clock()))
+        with self._read_snapshot() as reader:
+            return reader._detail(reader._auction(auction_id), as_utc(self.clock()))
 
     def bid_history(self, auction_id: str) -> list[dict]:
+        with self._read_snapshot() as reader:
+            return reader._bid_history(auction_id)
+
+    def _bid_history(self, auction_id: str) -> list[dict]:
         self._auction(auction_id)
         bids = self._bids(auction_id)
         latest_ranks = {bid.id: rank for rank, bid in enumerate(self._ranked(bids), 1)}

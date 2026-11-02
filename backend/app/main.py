@@ -4,8 +4,10 @@ import os
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from .database import get_session, init_db
@@ -26,6 +28,26 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_response(_request: Request, exc: RequestValidationError):
+    # Invalid input may itself contain non-JSON floats or unpaired surrogates.
+    # Keep the public error contract without echoing raw input/exception context.
+    def safe_text(value: str) -> str:
+        return value.encode("utf-8", errors="replace").decode("utf-8")
+
+    return JSONResponse(
+        status_code=422,
+        content={"detail": [
+            {
+                "type": safe_text(error["type"]),
+                "loc": [safe_text(part) if isinstance(part, str) else part for part in error["loc"]],
+                "msg": safe_text(error["msg"]),
+            }
+            for error in exc.errors()
+        ]},
+    )
 
 
 def get_service(session: Annotated[Session, Depends(get_session)]) -> AuctionService:
